@@ -5,6 +5,14 @@
   "author": "Francesco Frapporti <effedue@gmail.com>",
   "license": "MIT",
   "type": "module",
+  "homepage": "https://github.com/Fornace/pi-banana#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Fornace/pi-banana.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Fornace/pi-banana/issues"
+  },
   "keywords": [
     "pi",
     "pi-package",
