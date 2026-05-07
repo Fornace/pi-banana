@@ -41,7 +41,9 @@ Just ask pi for what you want:
 
 The model calls `generate_image` automatically. The PNG is shown inline and written to disk.
 
-## Tool: `generate_image`
+## Tool: `banana_image`
+
+> Renamed from `generate_image` in v2.0.1 to avoid colliding with `@benvargas/pi-antigravity-image-gen`. Both extensions can now coexist in the same pi install.
 
 | Param | Type | Default | Description |
 |---|---|---|---|

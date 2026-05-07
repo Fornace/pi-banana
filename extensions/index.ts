@@ -178,8 +178,8 @@ async function resolveOutputPath(
 
 export default function (pi: ExtensionAPI) {
 	pi.registerTool({
-		name: "generate_image",
-		label: "Image Gen",
+		name: "banana_image",
+		label: "Banana Image",
 		description:
 			"Generate or edit a PNG/JPEG image with Google's Nano Banana 2 " +
 			"(Gemini 3.1 Flash Image) or Nano Banana Pro. The image is shown " +
@@ -188,8 +188,8 @@ export default function (pi: ExtensionAPI) {
 		promptSnippet:
 			"Generate or edit images with Google Nano Banana via the GOOGLE_API_KEY env var.",
 		promptGuidelines: [
-			"Call generate_image when the user asks to create, draw, illustrate, or edit a picture.",
-			"For tweaks like 'make the sky purple', pass the previous file path as referenceImage to generate_image.",
+			"Call banana_image when the user asks to create, draw, illustrate, or edit a picture.",
+			"For tweaks like 'make the sky purple', pass the previous file path as referenceImage to banana_image.",
 			"Default quality 'fast' is right for most asks; switch to 'high' only when the user explicitly wants top quality.",
 		],
 		parameters: Type.Object({
