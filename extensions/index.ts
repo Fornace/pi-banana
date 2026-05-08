@@ -16,6 +16,13 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
+import {
+	Box,
+	Container,
+	Image,
+	Spacer,
+	Text,
+} from "@earendil-works/pi-tui";
 import { GoogleGenAI } from "@google/genai";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -370,6 +377,7 @@ export default function (pi: ExtensionAPI) {
 					{ type: "image", data: base64, mimeType },
 				],
 				details: {
+					prompt: params.prompt,
 					model,
 					quality,
 					aspectRatio,
@@ -380,6 +388,74 @@ export default function (pi: ExtensionAPI) {
 					referenceImage: params.referenceImage,
 				},
 			};
+		},
+
+		renderResult(result, _options, theme) {
+			const { details, content } = result;
+			const container = new Container();
+
+			// 1. Summary
+			const summaryPart = content.find((c: any) => c.type === "text");
+			const summaryText = (summaryPart && summaryPart.type === "text") ? summaryPart.text : "";
+			container.addChild(new Text(theme.fg("success", "✔ " + summaryText), 1, 0));
+
+			// 2. Image
+			const imagePart = content.find((c: any) => c.type === "image");
+			if (imagePart && imagePart.type === "image") {
+				container.addChild(
+					new Image(imagePart.data, imagePart.mimeType, {
+						...theme,
+						fallbackColor: (s: string) => theme.fg("muted", s),
+					}, {
+						maxWidthCells: 80,
+						maxHeightCells: 24,
+					})
+				);
+			}
+
+			if (!details) return container;
+
+			const {
+				prompt,
+				model,
+				quality,
+				aspectRatio,
+				imageSize,
+				outputPath,
+			} = details as any;
+
+			container.addChild(new Spacer(1));
+
+			// 3. Settings Card
+			const settingsBox = new Box(1, 1, (s) => theme.bg("customMessageBg", s));
+			const settingsContainer = new Container();
+
+			settingsContainer.addChild(
+				new Text(theme.fg("accent", theme.bold("🛠️  GENERATION SETTINGS")), 0, 0)
+			);
+			settingsContainer.addChild(new Spacer(1));
+
+			const addSetting = (label: string, value: string) => {
+				settingsContainer.addChild(
+					new Text(
+						theme.fg("muted", label.padEnd(10)) + theme.fg("text", String(value)),
+						0,
+						0
+					)
+				);
+			};
+
+			if (prompt) addSetting("Prompt", prompt);
+			if (model) addSetting("Model", model);
+			if (quality) addSetting("Quality", quality);
+			if (aspectRatio) addSetting("Aspect", aspectRatio);
+			if (imageSize) addSetting("Size", imageSize);
+			if (outputPath) addSetting("Path", outputPath);
+
+			settingsBox.addChild(settingsContainer);
+			container.addChild(settingsBox);
+
+			return container;
 		},
 	});
 }
