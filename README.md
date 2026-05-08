@@ -13,13 +13,15 @@ Generate and edit images directly inside [pi](https://github.com/badlogic/pi-mon
 ## Install
 
 ```sh
-pi install npm:pi-banana
+pi install pi-banana
 ```
+
+If pi doesn't resolve the bare name, use the explicit form: `pi install npm:pi-banana`.
 
 Or for a single-session try:
 
 ```sh
-pi -e npm:pi-banana
+pi -e pi-banana   # or: pi -e npm:pi-banana
 ```
 
 Then export your key:
