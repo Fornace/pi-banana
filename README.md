@@ -1,6 +1,6 @@
 # pi-banana
 
-![pi-banana banner](https://fcskjxapefiqdclrvbtw.supabase.co/storage/v1/object/public/assets/pi-packages/pi-banana-banner.png)
+![pi-banana banner](https://fcskjxapefiqdclrvbtw.supabase.co/storage/v1/object/public/assets/pi-packages/pi-banana-banner.jpg)
 
 Generate and edit images directly inside [pi](https://github.com/badlogic/pi-mono) using Google's **Nano Banana 2** (`gemini-3.1-flash-image-preview`) and **Nano Banana Pro** (`gemini-3-pro-image-preview`).
 
