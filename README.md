@@ -80,6 +80,15 @@ Two env vars adjust defaults without touching tool parameters:
 
 If you have an Antigravity OAuth setup and want quota tracking, benvargas is great. If you just want to drop in an API key and start making pictures, this one is simpler.
 
+## From the same author
+
+By [Francesco Frapporti](https://fornace.it) at [Fornace](https://fornace.it).
+
+- **[pi-bench](https://github.com/fornace/pi-bench)** — LLM benchmark toolkit for pi. Probes every available model to find the fastest and cheapest. All package banners in this ecosystem were created with pi-banana.
+- **[pi-recap](https://github.com/fornace/pi-recap)** — Always-visible session recap panel for pi. Never scroll back to remember what you were doing.
+- **[pi-alibaba-models](https://github.com/fornace/pi-alibaba-models)** — Complete Alibaba provider for pi: Qwen, DeepSeek, Kimi, GLM, MiniMax with native thinking levels.
+- **[pi-notte-theme](https://github.com/fornace/pi-notte-theme)** — Notte: a true-dark pi theme where darkness has color and text glows like terminal phosphor.
+
 ## Development
 
 ```sh
