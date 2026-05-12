@@ -191,12 +191,12 @@ export default function (pi: ExtensionAPI) {
 			"Generate or edit a PNG/JPEG image with Google's Nano Banana 2 " +
 			"(Gemini 3.1 Flash Image) or Nano Banana Pro. The image is shown " +
 			"inline in the terminal AND saved to disk so it can be re-used. " +
-			"Pass `referenceImage` to iterate on an existing picture.",
+			"Pass `referenceImages` (array of paths) to iterate on existing pictures.",
 		promptSnippet:
 			"Generate or edit images with Google Nano Banana via the GOOGLE_API_KEY env var.",
 		promptGuidelines: [
 			"Call banana_image when the user asks to create, draw, illustrate, or edit a picture.",
-			"For tweaks like 'make the sky purple', pass the previous file path as referenceImage to banana_image.",
+			"For tweaks like 'make the sky purple', pass the previous file path (or paths) as referenceImages to banana_image.",
 			"Default quality 'fast' is right for most asks; switch to 'high' only when the user explicitly wants top quality.",
 		],
 		parameters: Type.Object({
@@ -225,12 +225,12 @@ export default function (pi: ExtensionAPI) {
 					default: DEFAULT_QUALITY,
 				}),
 			),
-			referenceImage: Type.Optional(
-				Type.String({
+			referenceImages: Type.Optional(
+				Type.Array(Type.String(), {
 					description:
-						"Optional path to an existing image (PNG/JPEG/WebP/GIF) to edit or iterate on. " +
+						"Optional path(s) to existing image(s) (PNG/JPEG/WebP/GIF) to edit or iterate on. " +
 						"Relative paths resolve to the current working directory.",
-				}),
+				})
 			),
 			outputPath: Type.Optional(
 				Type.String({
@@ -240,6 +240,16 @@ export default function (pi: ExtensionAPI) {
 				}),
 			),
 		}),
+
+		prepareArguments(args: any) {
+			if (args.referenceImage !== undefined) {
+				args.referenceImages = Array.isArray(args.referenceImage)
+					? args.referenceImage
+					: [args.referenceImage];
+				delete args.referenceImage;
+			}
+			return args;
+		},
 
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const aspectRatio = params.aspectRatio ?? "1:1";
@@ -265,10 +275,12 @@ export default function (pi: ExtensionAPI) {
 				inlineData?: { mimeType: string; data: string };
 			}> = [];
 			let editing = false;
-			if (params.referenceImage) {
-				const ref = await loadReferenceImage(cwd, params.referenceImage);
-				parts.push({ inlineData: ref });
-				editing = true;
+			if (params.referenceImages && params.referenceImages.length > 0) {
+				for (const refPath of params.referenceImages) {
+					const ref = await loadReferenceImage(cwd, refPath);
+					parts.push({ inlineData: ref });
+					editing = true;
+				}
 			}
 			parts.push({ text: params.prompt });
 
@@ -365,8 +377,9 @@ export default function (pi: ExtensionAPI) {
 			);
 			await writeFile(outPath, Buffer.from(base64, "base64"));
 
+			const refStr = params.referenceImages?.join(", ") ?? "";
 			const summary = editing
-				? `Edited "${params.referenceImage}" → ${outPath}`
+				? `Edited "${refStr}" → ${outPath}`
 				: `Generated → ${outPath}`;
 
 			return {
@@ -385,7 +398,7 @@ export default function (pi: ExtensionAPI) {
 					mimeType,
 					outputPath: outPath,
 					editing,
-					referenceImage: params.referenceImage,
+					referenceImages: params.referenceImages,
 				},
 			};
 		},
