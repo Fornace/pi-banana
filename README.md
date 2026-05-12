@@ -2,13 +2,13 @@
 
 ![pi-banana banner](https://fcskjxapefiqdclrvbtw.supabase.co/storage/v1/object/public/assets/pi-packages/pi-banana-banner.jpg)
 
-Generate and edit images directly inside [pi](https://github.com/badlogic/pi-mono) using Google's **Nano Banana 2** (`gemini-3.1-flash-image-preview`) and **Nano Banana Pro** (`gemini-3-pro-image-preview`).
+Generate, edit, and analyze images directly inside [pi](https://github.com/badlogic/pi-mono) using Google's **Nano Banana 2** (`gemini-3.1-flash-image-preview`), **Nano Banana Pro** (`gemini-3-pro-image-preview`), and **Gemini Vision**.
 
-- **Inline preview** in Kitty / iTerm2 / WezTerm — image shows up right under the tool call, no copy-pasting paths.
-- **Reference-image editing** — pass `referenceImage: "./logo.png"` and the model edits that picture instead of starting from scratch.
+- **Image Generation & Editing** — Create images from scratch or pass `referenceImages: ["./logo.png"]` to edit existing pictures.
+- **Multimodal Vision** — Analyze, describe, or extract text from images using `gemini-3.1-flash-lite` (fast) or `gemini-3.1-pro-preview` (deep reasoning).
+- **Inline preview** in Kitty / iTerm2 / WezTerm — generated images show up right under the tool call.
 - **Auto-save** to `./generated/` so the agent and you both have a real file to refer back to.
 - **One env var** — `GOOGLE_API_KEY`. Works with both AI Studio (`AIza…`) and Vertex AI Express (`AQ.…`) keys.
-- **Backend-aware** — Vertex publishes the `-preview` model id, AI Studio sometimes publishes the GA name; the extension transparently retries the other variant on 404 so it just works.
 
 ## Install
 
@@ -41,11 +41,15 @@ Just ask pi for what you want:
 >
 > *"Edit `./generated/logo-20260508.png` — make the background transparent"*
 >
-> *"Draw a pixel-art banana with sunglasses, 1:1, save it as `./assets/mascot.png`"*
+> *"What color is the car in `./assets/photo.jpg`?"*
+>
+> *"Extract the text from these three receipts."*
 
-The model calls `generate_image` automatically. The PNG is shown inline and written to disk.
+The model calls `banana_image` or `banana_vision` automatically. 
 
-## Tool: `banana_image`
+## Tools
+
+### 1. `banana_image`
 
 > Renamed from `generate_image` in v2.0.1 to avoid colliding with `@benvargas/pi-antigravity-image-gen`. Both extensions can now coexist in the same pi install.
 
@@ -55,8 +59,16 @@ The model calls `generate_image` automatically. The PNG is shown inline and writ
 | `aspectRatio` | enum | `1:1` | `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9` |
 | `imageSize` | enum | `1K` | `1K`, `2K`, `4K`. `4K` requires `quality=high`. |
 | `quality` | enum | `fast` | `fast` = Nano Banana 2 (~3–10 s, cheapest). `high` = Nano Banana Pro (slower, top quality). |
-| `referenceImage` | string | — | Optional path to a PNG/JPEG/WebP/GIF to edit instead of generating from scratch. |
+| `referenceImages` | array | — | Optional array of paths (PNG/JPEG/WebP/GIF) to edit or use for composition instead of generating from scratch. |
 | `outputPath` | string | `./generated/<slug>-<ts>.png` | Optional output path. Parent dirs are created. |
+
+### 2. `banana_vision`
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `prompt` | string | — | Required. What you want to know about the image(s) (e.g. 'Describe this image', 'Extract the text'). |
+| `imagePaths` | array | — | Required. Array of paths to existing images to analyze. |
+| `quality` | enum | `fast` | `fast` = gemini-3.1-flash-lite (fast/cheap). `high` = gemini-3.1-pro-preview (slower, deep reasoning). |
 
 ## Configuration
 
