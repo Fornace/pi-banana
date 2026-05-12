@@ -406,6 +406,7 @@ export default function (pi: ExtensionAPI) {
 		},
 
 		renderResult(result, _options, theme) {
+			// existing renderResult code...
 			const { details, content } = result;
 			const container = new Container();
 
@@ -466,6 +467,160 @@ export default function (pi: ExtensionAPI) {
 			if (aspectRatio) addSetting("Aspect", aspectRatio);
 			if (imageSize) addSetting("Size", imageSize);
 			if (outputPath) addSetting("Path", outputPath);
+
+			settingsBox.addChild(settingsContainer);
+			container.addChild(settingsBox);
+
+			return container;
+		},
+	});
+
+	pi.registerTool({
+		name: "banana_vision",
+		label: "Banana Vision",
+		description:
+			"Analyze, describe, or extract text from images using Google Gemini Vision " +
+			"(gemini-3.1-flash-lite for fast analysis or gemini-3.1-pro-preview for deep inspection).",
+		promptSnippet:
+			"Analyze and describe images using Google Gemini Vision.",
+		promptGuidelines: [
+			"Call banana_vision when the user asks you to look at, describe, analyze, or extract text from an existing image file.",
+			"Default quality 'fast' (flash-lite) is good for most simple descriptions and text extraction; use 'high' (pro) for complex reasoning.",
+		],
+		parameters: Type.Object({
+			prompt: Type.String({
+				description: "What you want to know about the image(s) (e.g. 'Describe this image', 'Extract the text').",
+			}),
+			imagePaths: Type.Array(Type.String(), {
+				description:
+					"Provide an ARRAY OF STRINGS containing the paths to existing images " +
+					"to analyze (e.g., ['image1.png']). Relative paths resolve to current working directory.",
+			}),
+			quality: Type.Optional(
+				StringEnum(QUALITY, {
+					description:
+						"'fast' = gemini-3.1-flash-lite (default, fast/cheap). 'high' = gemini-3.1-pro-preview (slower, deep reasoning).",
+					default: DEFAULT_QUALITY,
+				}),
+			),
+		}),
+
+		prepareArguments(args: any) {
+			if (args.imagePath !== undefined) {
+				args.imagePaths = Array.isArray(args.imagePath) ? args.imagePath : [args.imagePath];
+				delete args.imagePath;
+			}
+			return args;
+		},
+
+		async execute(_toolCallId, params, signal, onUpdate, ctx) {
+			const quality = params.quality ?? DEFAULT_QUALITY;
+			const model = quality === "fast" ? "gemini-3.1-flash-lite" : "gemini-3.1-pro-preview";
+			const cwd = ctx.cwd;
+
+			if (signal?.aborted) {
+				return { content: [{ type: "text", text: "Cancelled." }], details: {} };
+			}
+
+			const client = buildClient();
+			const parts: Array<{
+				text?: string;
+				inlineData?: { mimeType: string; data: string };
+			}> = [];
+
+			if (!params.imagePaths || params.imagePaths.length === 0) {
+				throw new Error("At least one image path must be provided in imagePaths.");
+			}
+
+			for (const imgPath of params.imagePaths) {
+				const ref = await loadReferenceImage(cwd, imgPath);
+				parts.push({ inlineData: ref });
+			}
+			parts.push({ text: params.prompt });
+
+			onUpdate?.({
+				content: [
+					{
+						type: "text",
+						text: `👁️ Analyzing image(s) with ${model}…`,
+					},
+				],
+				details: { model, quality, imagePaths: params.imagePaths },
+			});
+
+			let response;
+			try {
+				response = await client.models.generateContent({
+					model,
+					contents: [{ role: "user", parts }],
+					config: { abortSignal: signal },
+				});
+			} catch (err: any) {
+				throw new Error(`Google vision API error: ${err?.message ?? String(err)}`);
+			}
+
+			const textOut = response.text || "";
+			if (!textOut) {
+				const candidate = response.candidates?.[0];
+				const reason = candidate?.finishReason ?? "unknown";
+				const safety = candidate?.safetyRatings
+					?.filter((r: any) => r.blocked || r.probability === "HIGH")
+					.map((r: any) => r.category)
+					.join(", ");
+				throw new Error(
+					`No analysis returned (finishReason=${reason}` +
+						(safety ? `, blocked=${safety}` : "") +
+						`)`,
+				);
+			}
+
+			return {
+				content: [{ type: "text", text: textOut }],
+				details: {
+					prompt: params.prompt,
+					model,
+					quality,
+					imagePaths: params.imagePaths,
+				},
+			};
+		},
+
+		renderResult(result, _options, theme) {
+			const { details, content } = result;
+			const container = new Container();
+
+			const textPart = content.find((c: any) => c.type === "text");
+			const responseText = textPart && textPart.type === "text" ? textPart.text : "";
+			
+			// Show the output text with a nice quote-like block or just plain text
+			container.addChild(new Text(theme.fg("text", responseText), 0, 0));
+
+			if (!details) return container;
+			const { prompt, model, quality, imagePaths } = details as any;
+
+			container.addChild(new Spacer(1));
+			const settingsBox = new Box(1, 1, (s) => theme.bg("customMessageBg", s));
+			const settingsContainer = new Container();
+
+			settingsContainer.addChild(
+				new Text(theme.fg("accent", theme.bold("👁️  VISION SETTINGS")), 0, 0)
+			);
+			settingsContainer.addChild(new Spacer(1));
+
+			const addSetting = (label: string, value: string) => {
+				settingsContainer.addChild(
+					new Text(
+						theme.fg("muted", label.padEnd(10)) + theme.fg("text", String(value)),
+						0,
+						0
+					)
+				);
+			};
+
+			if (prompt) addSetting("Prompt", prompt);
+			if (model) addSetting("Model", model);
+			if (quality) addSetting("Quality", quality);
+			if (imagePaths) addSetting("Images", Array.isArray(imagePaths) ? imagePaths.join(", ") : imagePaths);
 
 			settingsBox.addChild(settingsContainer);
 			container.addChild(settingsBox);
