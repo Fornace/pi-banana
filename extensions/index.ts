@@ -228,7 +228,8 @@ export default function (pi: ExtensionAPI) {
 			referenceImages: Type.Optional(
 				Type.Array(Type.String(), {
 					description:
-						"Optional path(s) to existing image(s) (PNG/JPEG/WebP/GIF) to edit or iterate on. " +
+						"Provide an ARRAY OF STRINGS containing the paths to existing images " +
+						"to edit or iterate on (e.g., ['old1.png', 'old2.png']). " +
 						"Relative paths resolve to the current working directory.",
 				})
 			),
