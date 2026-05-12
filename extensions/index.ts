@@ -438,6 +438,7 @@ export default function (pi: ExtensionAPI) {
 				aspectRatio,
 				imageSize,
 				outputPath,
+				referenceImages,
 			} = details as any;
 
 			container.addChild(new Spacer(1));
@@ -467,6 +468,9 @@ export default function (pi: ExtensionAPI) {
 			if (aspectRatio) addSetting("Aspect", aspectRatio);
 			if (imageSize) addSetting("Size", imageSize);
 			if (outputPath) addSetting("Path", outputPath);
+			if (referenceImages && referenceImages.length > 0) {
+				addSetting("Refs", Array.isArray(referenceImages) ? referenceImages.join(", ") : referenceImages);
+			}
 
 			settingsBox.addChild(settingsContainer);
 			container.addChild(settingsBox);
