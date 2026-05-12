@@ -197,6 +197,7 @@ export default function (pi: ExtensionAPI) {
 		promptGuidelines: [
 			"Call banana_image when the user asks to create, draw, illustrate, or edit a picture.",
 			"For tweaks like 'make the sky purple', pass the previous file path (or paths) as referenceImages to banana_image.",
+			"AVOID CHAINED EDITS: Editing an image that has already been edited causes quality loss. If the user asks for a subsequent tweak, prefer starting a brand new generation. Incorporate all their previous and new instructions into a single comprehensive prompt, and use the original reference images (not the intermediate edited outputs) to create a merged composition. Present this fresh generation by default, but comply if they explicitly insist on editing the edited version.",
 			"Default quality 'fast' is right for most asks; switch to 'high' only when the user explicitly wants top quality.",
 		],
 		parameters: Type.Object({
