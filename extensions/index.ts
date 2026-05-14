@@ -19,6 +19,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import {
 	Box,
 	Container,
+	Image,
 	Spacer,
 	Text,
 } from "@earendil-works/pi-tui";
@@ -384,12 +385,10 @@ export default function (pi: ExtensionAPI) {
 				: `Generated → ${outPath}`;
 
 			return {
-				// Flat ImageContent block — pi-coding-agent auto-renders inline
-				// in Kitty/iTerm2 terminals. Older terminals get the text fallback.
-				content: [
-					{ type: "text", text: summary },
-					{ type: "image", data: base64, mimeType },
-				],
+				// Only text in content — the base64 image goes into details
+				// so it does not bloat conversation history sent to the LLM.
+				// renderResult reads the image from details for inline display.
+				content: [{ type: "text", text: summary }],
 				details: {
 					prompt: params.prompt,
 					model,
@@ -400,13 +399,14 @@ export default function (pi: ExtensionAPI) {
 					outputPath: outPath,
 					editing,
 					referenceImages: params.referenceImages,
+					imageBase64: base64,
 				},
 			};
 		},
 
 		renderResult(result, _options, theme) {
-			// The image content block is auto-rendered inline by pi-coding-agent
-			// (Kitty/iTerm2). renderResult only adds the summary + settings card.
+			// Image is in details (not content) so base64 does not bloat
+			// conversation history sent to the LLM on subsequent turns.
 			const { details, content } = result;
 			const container = new Container();
 
@@ -415,7 +415,20 @@ export default function (pi: ExtensionAPI) {
 			const summaryText = (summaryPart && summaryPart.type === "text") ? summaryPart.text : "";
 			if (summaryText) {
 				container.addChild(new Text(theme.fg("success", "✔ " + summaryText), 1, 0));
+			}
+
+			// 2. Image from details
+			if (details && (details as any).imageBase64) {
 				container.addChild(new Spacer(1));
+				container.addChild(
+					new Image((details as any).imageBase64, (details as any).mimeType ?? "image/png", {
+						...theme,
+						fallbackColor: (s: string) => theme.fg("muted", s),
+					}, {
+						maxWidthCells: 80,
+						maxHeightCells: 24,
+					})
+				);
 			}
 
 			if (!details) return container;
