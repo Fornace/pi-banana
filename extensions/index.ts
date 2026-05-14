@@ -19,7 +19,6 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import {
 	Box,
 	Container,
-	Image,
 	Spacer,
 	Text,
 } from "@earendil-works/pi-tui";
@@ -406,27 +405,17 @@ export default function (pi: ExtensionAPI) {
 		},
 
 		renderResult(result, _options, theme) {
-			// existing renderResult code...
+			// The image content block is auto-rendered inline by pi-coding-agent
+			// (Kitty/iTerm2). renderResult only adds the summary + settings card.
 			const { details, content } = result;
 			const container = new Container();
 
 			// 1. Summary
 			const summaryPart = content.find((c: any) => c.type === "text");
 			const summaryText = (summaryPart && summaryPart.type === "text") ? summaryPart.text : "";
-			container.addChild(new Text(theme.fg("success", "✔ " + summaryText), 1, 0));
-
-			// 2. Image
-			const imagePart = content.find((c: any) => c.type === "image");
-			if (imagePart && imagePart.type === "image") {
-				container.addChild(
-					new Image(imagePart.data, imagePart.mimeType, {
-						...theme,
-						fallbackColor: (s: string) => theme.fg("muted", s),
-					}, {
-						maxWidthCells: 80,
-						maxHeightCells: 24,
-					})
-				);
+			if (summaryText) {
+				container.addChild(new Text(theme.fg("success", "✔ " + summaryText), 1, 0));
+				container.addChild(new Spacer(1));
 			}
 
 			if (!details) return container;

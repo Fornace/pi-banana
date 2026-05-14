@@ -1,6 +1,6 @@
 {
   "name": "pi-banana",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "description": "Generate, edit, and analyze images in pi using Google Nano Banana (image gen) and Gemini Vision (analysis). Inline terminal preview, reference-image editing, auto-save.",
   "author": "Francesco Frapporti <effedue@gmail.com>",
   "license": "MIT",
