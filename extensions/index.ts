@@ -9,9 +9,13 @@
  * pi-coding-agent renders them inline (Kitty / iTerm2). Also writes the file
  * to disk so the agent and the user always have a path to refer back to.
  *
- * Auth: GOOGLE_API_KEY in the environment.
- *   - AI Studio keys (AIza...) hit the Gemini API.
- *   - Vertex AI Express keys (AQ....) automatically switch to Vertex.
+ * Auth (checked in this order — first match wins):
+ *   1. ~/.pi/agent/auth.json → "google" key (set via /login — the pi-native way)
+ *   2. GOOGLE_API_KEY env var (AIza… or AQ.…) — pi-banana backward compat
+ *   3. GEMINI_API_KEY env var — pi's standard Google provider env var
+ *   4. Vertex AI ADC — gcloud auth application-default login,
+ *      GOOGLE_APPLICATION_CREDENTIALS, or GOOGLE_CLOUD_PROJECT
+ *   Vertex AI Express keys (AQ.…) automatically switch to Vertex.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -24,7 +28,8 @@ import {
 	Text,
 } from "@earendil-works/pi-tui";
 import { GoogleGenAI } from "@google/genai";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, isAbsolute, resolve } from "node:path";
 import { Type } from "typebox";
@@ -76,14 +81,101 @@ const SUPPORTED_INPUT_MIME = new Set([
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
+// Well-known path for pi's credential store (written by /login).
+const PI_AUTH_JSON = resolve(
+	homedir(),
+	".pi/agent/auth.json",
+);
+
+// Well-known path for gcloud Application Default Credentials.
+const ADC_CREDENTIALS_PATH = resolve(
+	homedir(),
+	".config/gcloud/application_default_credentials.json",
+);
+
+/**
+ * Check whether Vertex AI Application Default Credentials are available.
+ * Returns true when any of these are configured:
+ *   - GOOGLE_APPLICATION_CREDENTIALS points to an existing file
+ *   - gcloud ADC file exists (~/.config/gcloud/application_default_credentials.json)
+ *   - GOOGLE_CLOUD_PROJECT is set (implies GKE / Cloud Run / Compute Engine default SA)
+ */
+function hasVertexADC(): boolean {
+	const gac = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+	if (gac && existsSync(gac)) return true;
+	if (existsSync(ADC_CREDENTIALS_PATH)) return true;
+	if (process.env.GOOGLE_CLOUD_PROJECT) return true;
+	return false;
+}
+
+/**
+ * Resolve Google API key using pi's native credential chain.
+ * Priority: auth.json > GOOGLE_API_KEY > GEMINI_API_KEY.
+ * Returns undefined if no API key is found (caller checks hasVertexADC() next).
+ */
+function resolveGoogleApiKey(): string | undefined {
+	// 1. auth.json — pi's native credential store (populated by /login)
+	try {
+		const raw = readFileSync(PI_AUTH_JSON, "utf-8");
+		const auth = JSON.parse(raw) as Record<string, unknown>;
+		const cred = auth?.["google"];
+		if (
+			cred &&
+			typeof cred === "object" &&
+			"type" in cred &&
+			cred.type === "api_key" &&
+			"key" in cred &&
+			typeof cred.key === "string" &&
+			cred.key
+		) {
+			if (cred.key.startsWith("AIza") || cred.key.startsWith("AQ.")) {
+				return cred.key; // literal API key
+			}
+			if (!cred.key.startsWith("!")) {
+				// Treat as an env-var name (auth.json supports bare var names)
+				const resolved = process.env[cred.key];
+				if (resolved) return resolved;
+			}
+			// "!command" format — skip, too complex for image gen context
+		}
+	} catch {
+		// auth.json missing or unreadable — fall through to env vars
+	}
+
+	// 2. pi-banana's own env var (backward compat)
+	if (process.env.GOOGLE_API_KEY) return process.env.GOOGLE_API_KEY;
+
+	// 3. pi's standard Google provider env var
+	if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+
+	return undefined;
+}
+
 function buildClient(): GoogleGenAI {
-	const apiKey = process.env.GOOGLE_API_KEY;
+	// ── Path A: Vertex AI with Application Default Credentials ──
+	const apiKey = resolveGoogleApiKey();
+	const useADC = !apiKey && hasVertexADC();
+
+	if (useADC) {
+		// No API key needed — the Google GenAI SDK picks up ADC automatically
+		// when vertexai: true and no apiKey is provided.
+		return new GoogleGenAI({ vertexai: true });
+	}
+
+	// ── Path B: API key (Gemini API or Vertex Express key) ──
 	if (!apiKey) {
 		throw new Error(
-			"GOOGLE_API_KEY not set. Get one at https://aistudio.google.com/apikey (AIza…) " +
-				"or use a Vertex AI Express key (AQ.…) — both work.",
+			"No Google credentials found. pi-banana looked in this order:\n" +
+				"  1. ~/.pi/agent/auth.json → \"google\" key (run /login → Google)\n" +
+				"  2. GOOGLE_API_KEY env var (AIza… or AQ.…)\n" +
+				"  3. GEMINI_API_KEY env var (pi's standard Google provider key)\n" +
+				"  4. Vertex AI ADC (gcloud auth application-default login,\n" +
+				"     GOOGLE_APPLICATION_CREDENTIALS, or GOOGLE_CLOUD_PROJECT)\n\n" +
+				"For Gemini API: get a key at https://aistudio.google.com/apikey\n" +
+				"For Vertex AI: gcloud auth application-default login",
 		);
 	}
+
 	// AQ.* express keys authenticate against Vertex; AIza* against Gemini API.
 	return new GoogleGenAI({
 		apiKey,
@@ -193,7 +285,7 @@ export default function (pi: ExtensionAPI) {
 			"inline in the terminal AND saved to disk so it can be re-used. " +
 			"Pass `referenceImages` (array of paths) to iterate on existing pictures.",
 		promptSnippet:
-			"Generate or edit images with Google Nano Banana via the GOOGLE_API_KEY env var.",
+			"Generate or edit images with Google Nano Banana. Requires Google credentials (via /login, GOOGLE_API_KEY / GEMINI_API_KEY, or Vertex AI ADC).",
 		promptGuidelines: [
 			"Call banana_image when the user asks to create, draw, illustrate, or edit a picture.",
 			"For tweaks like 'make the sky purple', pass the previous file path (or paths) as referenceImages to banana_image.",
