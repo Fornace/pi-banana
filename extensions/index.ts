@@ -10,11 +10,11 @@
  * to disk so the agent and the user always have a path to refer back to.
  *
  * Auth (checked in this order — first match wins):
- *   1. ~/.pi/agent/auth.json → "google" key (set via /login — the pi-native way)
- *   2. GOOGLE_API_KEY env var (AIza… or AQ.…) — pi-banana backward compat
- *   3. GEMINI_API_KEY env var — pi's standard Google provider env var
- *   4. Vertex AI ADC — gcloud auth application-default login,
+ *   1. pi modelRegistry → auth.json / env vars / models.json
+ *      (set via /login → Google, or GEMINI_API_KEY env var)
+ *   2. Vertex AI ADC — gcloud auth application-default login,
  *      GOOGLE_APPLICATION_CREDENTIALS, or GOOGLE_CLOUD_PROJECT
+ *   3. GOOGLE_API_KEY env var (AIza… or AQ.…) — pi-banana backward compat
  *   Vertex AI Express keys (AQ.…) automatically switch to Vertex.
  */
 
@@ -28,7 +28,7 @@ import {
 	Text,
 } from "@earendil-works/pi-tui";
 import { GoogleGenAI } from "@google/genai";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, isAbsolute, resolve } from "node:path";
@@ -81,12 +81,6 @@ const SUPPORTED_INPUT_MIME = new Set([
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-// Well-known path for pi's credential store (written by /login).
-const PI_AUTH_JSON = resolve(
-	homedir(),
-	".pi/agent/auth.json",
-);
-
 // Well-known path for gcloud Application Default Credentials.
 const ADC_CREDENTIALS_PATH = resolve(
 	homedir(),
@@ -108,79 +102,50 @@ function hasVertexADC(): boolean {
 	return false;
 }
 
-/**
- * Resolve Google API key using pi's native credential chain.
- * Priority: auth.json > GOOGLE_API_KEY > GEMINI_API_KEY.
- * Returns undefined if no API key is found (caller checks hasVertexADC() next).
- */
-function resolveGoogleApiKey(): string | undefined {
-	// 1. auth.json — pi's native credential store (populated by /login)
-	try {
-		const raw = readFileSync(PI_AUTH_JSON, "utf-8");
-		const auth = JSON.parse(raw) as Record<string, unknown>;
-		const cred = auth?.["google"];
-		if (
-			cred &&
-			typeof cred === "object" &&
-			"type" in cred &&
-			cred.type === "api_key" &&
-			"key" in cred &&
-			typeof cred.key === "string" &&
-			cred.key
-		) {
-			if (cred.key.startsWith("AIza") || cred.key.startsWith("AQ.")) {
-				return cred.key; // literal API key
+async function buildClient(
+	modelRegistry: ExtensionAPI["modelRegistry"] | undefined,
+): Promise<GoogleGenAI> {
+	// 1. Pi's model registry — the pi-native auth chain
+	//    (auth.json → env vars → models.json fallback)
+	if (modelRegistry) {
+		try {
+			const apiKey = await modelRegistry.getApiKeyForProvider("google");
+			if (apiKey) {
+				return new GoogleGenAI({
+					apiKey,
+					...(apiKey.startsWith("AQ.") ? { vertexai: true } : {}),
+				});
 			}
-			if (!cred.key.startsWith("!")) {
-				// Treat as an env-var name (auth.json supports bare var names)
-				const resolved = process.env[cred.key];
-				if (resolved) return resolved;
-			}
-			// "!command" format — skip, too complex for image gen context
+		} catch {
+			// ignore — fall through
 		}
-	} catch {
-		// auth.json missing or unreadable — fall through to env vars
 	}
 
-	// 2. pi-banana's own env var (backward compat)
-	if (process.env.GOOGLE_API_KEY) return process.env.GOOGLE_API_KEY;
-
-	// 3. pi's standard Google provider env var
-	if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
-
-	return undefined;
-}
-
-function buildClient(): GoogleGenAI {
-	// ── Path A: Vertex AI with Application Default Credentials ──
-	const apiKey = resolveGoogleApiKey();
-	const useADC = !apiKey && hasVertexADC();
-
-	if (useADC) {
-		// No API key needed — the Google GenAI SDK picks up ADC automatically
-		// when vertexai: true and no apiKey is provided.
+	// 2. Vertex AI ADC (no API key needed — SDK picks up ADC automatically)
+	if (hasVertexADC()) {
 		return new GoogleGenAI({ vertexai: true });
 	}
 
-	// ── Path B: API key (Gemini API or Vertex Express key) ──
-	if (!apiKey) {
-		throw new Error(
-			"No Google credentials found. pi-banana looked in this order:\n" +
-				"  1. ~/.pi/agent/auth.json → \"google\" key (run /login → Google)\n" +
-				"  2. GOOGLE_API_KEY env var (AIza… or AQ.…)\n" +
-				"  3. GEMINI_API_KEY env var (pi's standard Google provider key)\n" +
-				"  4. Vertex AI ADC (gcloud auth application-default login,\n" +
-				"     GOOGLE_APPLICATION_CREDENTIALS, or GOOGLE_CLOUD_PROJECT)\n\n" +
-				"For Gemini API: get a key at https://aistudio.google.com/apikey\n" +
-				"For Vertex AI: gcloud auth application-default login",
-		);
+	// 3. GOOGLE_API_KEY env var — backward compat for pi-banana users
+	//    (pi's standard GEMINI_API_KEY is already covered by modelRegistry above)
+	if (process.env.GOOGLE_API_KEY) {
+		const key = process.env.GOOGLE_API_KEY;
+		return new GoogleGenAI({
+			apiKey: key,
+			...(key.startsWith("AQ.") ? { vertexai: true } : {}),
+		});
 	}
 
-	// AQ.* express keys authenticate against Vertex; AIza* against Gemini API.
-	return new GoogleGenAI({
-		apiKey,
-		...(apiKey.startsWith("AQ.") ? { vertexai: true } : {}),
-	});
+	throw new Error(
+		"No Google credentials found. pi-banana looked in this order:\n" +
+			"  1. pi model registry (auth.json → env vars → models.json)\n" +
+			"     Run /login → Google, or set GEMINI_API_KEY, or configure in models.json\n" +
+			"  2. Vertex AI ADC (gcloud auth application-default login,\n" +
+			"     GOOGLE_APPLICATION_CREDENTIALS, or GOOGLE_CLOUD_PROJECT)\n" +
+			"  3. GOOGLE_API_KEY env var (AIza… or AQ.…)\n\n" +
+			"For Gemini API: get a key at https://aistudio.google.com/apikey\n" +
+			"For Vertex AI: gcloud auth application-default login",
+	);
 }
 
 function slugify(text: string): string {
@@ -361,7 +326,7 @@ export default function (pi: ExtensionAPI) {
 				);
 			}
 
-			const client = buildClient();
+			const client = await buildClient(ctx.modelRegistry);
 
 			// Build content parts — text + (optional) reference image.
 			const parts: Array<{
@@ -620,7 +585,7 @@ export default function (pi: ExtensionAPI) {
 				return { content: [{ type: "text", text: "Cancelled." }], details: {} };
 			}
 
-			const client = buildClient();
+			const client = await buildClient(ctx.modelRegistry);
 			const parts: Array<{
 				text?: string;
 				inlineData?: { mimeType: string; data: string };
