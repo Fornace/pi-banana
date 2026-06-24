@@ -479,7 +479,6 @@ export default function (pi: ExtensionAPI) {
 				container.addChild(new Spacer(1));
 				container.addChild(
 					new Image((details as any).imageBase64, (details as any).mimeType ?? "image/png", {
-						...theme,
 						fallbackColor: (s: string) => theme.fg("muted", s),
 					}, {
 						maxWidthCells: 80,
