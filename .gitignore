@@ -7,3 +7,6 @@ assets/
 .env
 .env.*
 !.env.example
+
+# generated knowledge-graph output
+graphify-out/
