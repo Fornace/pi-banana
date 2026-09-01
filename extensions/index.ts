@@ -18,7 +18,7 @@
  *   Vertex AI Express keys (AQ.…) automatically switch to Vertex.
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
 import {
 	Box,
@@ -51,26 +51,26 @@ const ASPECT_RATIOS = [
 	"21:9",
 ] as const;
 const IMAGE_SIZES = ["1K", "2K", "4K"] as const;
-const QUALITY = ["fast", "high"] as const;
+const IMAGE_QUALITY = ["lite", "fast", "high"] as const;
+const VISION_QUALITY = ["fast", "high"] as const;
+type ImageQuality = (typeof IMAGE_QUALITY)[number];
 
-// Resolved against a live Vertex Express (AQ.*) key on 2026-05-08:
-//   gemini-3.1-flash-image          → 404
-//   gemini-3.1-flash-image-preview  → ok  (Nano Banana 2)
-//   gemini-3-pro-image              → 404
-//   gemini-3-pro-image-preview      → ok  (Nano Banana Pro)
-// AI Studio keys (AIza*) sometimes publish the un-suffixed GA names.
-// `callWithModelFallback` below transparently retries with `-preview`
-// if the un-suffixed id 404s, so both backends just work.
-const MODEL_FOR_QUALITY: Record<(typeof QUALITY)[number], string> = {
-	fast: "gemini-3.1-flash-image-preview", // Nano Banana 2
-	high: "gemini-3-pro-image-preview", // Nano Banana Pro
+// GA ids (Gemini API changelog 2026-05-28: gemini-3.1-flash-image and
+// gemini-3-pro-image went GA; 2026-06-30: gemini-3.1-flash-lite-image GA).
+// Vertex Express keys historically served the `-preview` variants; the
+// GA and preview ids are published at different times per backend, so
+// `callWithModelFallback` retries the other variant on 404. Both work.
+// Verified against the Gemini API changelog on 2026-09-01.
+const MODEL_FOR_QUALITY: Record<ImageQuality, string> = {
+	lite: "gemini-3.1-flash-lite-image", // Nano Banana 2 Lite (ultra-low latency, cheapest)
+	fast: "gemini-3.1-flash-image", // Nano Banana 2
+	high: "gemini-3-pro-image", // Nano Banana Pro
 };
 
 const DEFAULT_OUTPUT_DIR =
 	process.env.PI_IMAGE_DIR?.trim() || "generated";
 const DEFAULT_QUALITY = (process.env.PI_IMAGE_QUALITY as
-	| "fast"
-	| "high"
+	| ImageQuality
 	| undefined) ?? "fast";
 const SUPPORTED_INPUT_MIME = new Set([
 	"image/png",
@@ -103,7 +103,7 @@ function hasVertexADC(): boolean {
 }
 
 async function buildClient(
-	modelRegistry: ExtensionAPI["modelRegistry"] | undefined,
+	modelRegistry: ExtensionContext["modelRegistry"] | undefined,
 ): Promise<GoogleGenAI> {
 	// 1. Pi's model registry — the pi-native auth chain
 	//    (auth.json → env vars → models.json fallback)
@@ -277,9 +277,9 @@ export default function (pi: ExtensionAPI) {
 				}),
 			),
 			quality: Type.Optional(
-				StringEnum(QUALITY, {
+				StringEnum(IMAGE_QUALITY, {
 					description:
-						"'fast' = Nano Banana 2 (default, ~3s, cheap). 'high' = Nano Banana Pro (slower, top quality).",
+						"'lite' = Nano Banana 2 Lite (ultra-low latency, cheapest). 'fast' = Nano Banana 2 (default, ~3s, cheap). 'high' = Nano Banana Pro (slower, top quality).",
 					default: DEFAULT_QUALITY,
 				}),
 			),
@@ -348,7 +348,7 @@ export default function (pi: ExtensionAPI) {
 				content: [
 					{
 						type: "text",
-						text: `🎨 ${verbLabel} ${aspectRatio} ${imageSize} image with ${quality === "fast" ? "Nano Banana 2" : "Nano Banana Pro"}…`,
+						text: `🎨 ${verbLabel} ${aspectRatio} ${imageSize} image with ${quality === "lite" ? "Nano Banana 2 Lite" : quality === "fast" ? "Nano Banana 2" : "Nano Banana Pro"}…`,
 					},
 				],
 				details: { model, aspectRatio, imageSize, quality, editing },
@@ -559,10 +559,10 @@ export default function (pi: ExtensionAPI) {
 					"to analyze (e.g., ['image1.png']). Relative paths resolve to current working directory.",
 			}),
 			quality: Type.Optional(
-				StringEnum(QUALITY, {
+				StringEnum(VISION_QUALITY, {
 					description:
 						"'fast' = gemini-3.1-flash-lite (default, fast/cheap). 'high' = gemini-3.1-pro-preview (slower, deep reasoning).",
-					default: DEFAULT_QUALITY,
+					default: "fast",
 				}),
 			),
 		}),

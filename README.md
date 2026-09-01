@@ -58,7 +58,7 @@ The model calls `banana_image` or `banana_vision` automatically.
 | `prompt` | string | — | Required. What to draw, or what to change about the reference image. |
 | `aspectRatio` | enum | `1:1` | `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9` |
 | `imageSize` | enum | `1K` | `1K`, `2K`, `4K`. `4K` requires `quality=high`. |
-| `quality` | enum | `fast` | `fast` = Nano Banana 2 (~3–10 s, cheapest). `high` = Nano Banana Pro (slower, top quality). |
+| `quality` | enum | `fast` | `lite` = Nano Banana 2 Lite (ultra-low latency, cheapest). `fast` = Nano Banana 2 (~3–10 s). `high` = Nano Banana Pro (slower, top quality). All GA model ids since 2.4.0. |
 | `referenceImages` | array | — | Optional array of paths (PNG/JPEG/WebP/GIF) to edit or use for composition instead of generating from scratch. |
 | `outputPath` | string | `./generated/<slug>-<ts>.png` | Optional output path. Parent dirs are created. |
 
