@@ -72,6 +72,23 @@ The model calls `banana_image` or `banana_vision` automatically.
 
 ## Configuration
 
+### OpenAI-compatible providers (mantice and friends)
+
+Run `/banana-setup` to point the tools at any OpenAI-compatible image provider. The wizard asks for a base URL and API key (prefilled from pi credentials when available), probes the endpoint for image generation, image editing, vision, and video support, and lets you pick a model per quality tier. Config is saved in settings.json under `"banana"`:
+
+```json
+"banana": {
+  "baseUrl": "https://llm.fornace.net/v1",
+  "apiKey": "sk-...",
+  "models": { "lite": "fornace-image-lite", "fast": "fornace-image", "high": "fornace-image-max" },
+  "visionModel": "fornace-vision"
+}
+```
+
+Delete the `"banana"` section to return to the built-in Google path.
+
+### Environment
+
 Two env vars adjust defaults without touching tool parameters:
 
 | Env var | Default | Effect |

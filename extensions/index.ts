@@ -19,6 +19,8 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { resolveProvider, openaiGenerateImage, openaiEditImage, openaiVision, sizeFor } from "./providers.ts";
+import { runBananaSetup } from "./wizard.ts";
 import { StringEnum } from "@earendil-works/pi-ai";
 import {
 	Box,
@@ -241,6 +243,13 @@ async function resolveOutputPath(
 // ─── Extension ─────────────────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
+	pi.registerCommand("banana-setup", {
+		description: "Interactive setup: point banana at any OpenAI-compatible image provider (URL + key, capability probe, model selection)",
+		handler: async (_args, ctx) => {
+			await runBananaSetup(ctx);
+		},
+	});
+
 	pi.registerTool({
 		name: "banana_image",
 		label: "Banana Image",
@@ -324,6 +333,41 @@ export default function (pi: ExtensionAPI) {
 				throw new Error(
 					"imageSize=4K requires quality='high' (Nano Banana Pro).",
 				);
+			}
+
+			// OpenAI-compatible provider (mantice etc.) when configured via /banana-setup.
+			const provider = await resolveProvider(ctx);
+			if (provider.kind === "openai-compat") {
+				const { config } = provider;
+				const oaiModel = config.models[quality] ?? config.models.fast;
+				if (!oaiModel) {
+					throw new Error(`banana: no model mapped for quality "${quality}". Run /banana-setup.`);
+				}
+				const size = sizeFor(aspectRatio, imageSize);
+				const refs: { mimeType: string; data: string }[] = [];
+				if (params.referenceImages) {
+					for (const refPath of params.referenceImages) {
+						refs.push(await loadReferenceImage(cwd, refPath));
+					}
+				}
+				const editing = refs.length > 0;
+				onUpdate?.({
+					content: [{ type: "text", text: `🎨 ${editing ? "Editing" : "Generating"} ${aspectRatio} ${imageSize} image with ${oaiModel}…` }],
+					details: { model: oaiModel, aspectRatio, imageSize, quality, editing },
+				});
+				const buf = editing
+					? await openaiEditImage(config, { model: oaiModel, prompt: params.prompt, images: refs, size, signal })
+					: await openaiGenerateImage(config, { model: oaiModel, prompt: params.prompt, size, signal });
+				const outPath = await resolveOutputPath(cwd, params.prompt, "image/png", params.outputPath);
+				await writeFile(outPath, buf);
+				return {
+					content: [{ type: "text", text: editing ? `Edited → ${outPath}` : `Generated → ${outPath}` }],
+					details: {
+						prompt: params.prompt, model: oaiModel, quality, aspectRatio, imageSize,
+						mimeType: "image/png", outputPath: outPath, editing,
+						referenceImages: params.referenceImages, imageBase64: buf.toString("base64"),
+					},
+				};
 			}
 
 			const client = await buildClient(ctx.modelRegistry);
@@ -592,6 +636,25 @@ export default function (pi: ExtensionAPI) {
 
 			if (!params.imagePaths || params.imagePaths.length === 0) {
 				throw new Error("At least one image path must be provided in imagePaths.");
+			}
+
+			// OpenAI-compatible provider (mantice etc.) when configured via /banana-setup.
+			const provider = await resolveProvider(ctx);
+			if (provider.kind === "openai-compat" && provider.config.visionModel) {
+				const { config } = provider;
+				const images: { mimeType: string; data: string }[] = [];
+				for (const imgPath of params.imagePaths) {
+					images.push(await loadReferenceImage(cwd, imgPath));
+				}
+				onUpdate?.({
+					content: [{ type: "text", text: `👁️ Analyzing image(s) with ${config.visionModel}…` }],
+					details: { model: config.visionModel, quality, imagePaths: params.imagePaths },
+				});
+				const textOut = await openaiVision(config, { model: config.visionModel!, prompt: params.prompt, images, signal });
+				return {
+					content: [{ type: "text", text: textOut }],
+					details: { prompt: params.prompt, model: config.visionModel, quality, imagePaths: params.imagePaths },
+				};
 			}
 
 			for (const imgPath of params.imagePaths) {

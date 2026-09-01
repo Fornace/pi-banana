@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.5.0
+
+> OpenAI-compatible provider support with interactive setup (works with mantice).
+
+- New `/banana-setup` wizard: enter a base URL and API key (prefilled from pi credentials when available), the wizard probes the endpoint, classifies image/vision/video models, checks `/images/generations`, `/images/edits`, and `/videos/generations` support, and lets you pick a model per quality tier.
+- When a provider is configured, banana_image and banana_vision call it via the OpenAI shapes instead of the Google API. Delete the "banana" section from settings.json to return to Google.
+- Verified live against mantice (llm.fornace.net): 9 image models detected, edit endpoint present, real generation roundtrip.
+
 ## 2.4.0
 
 > Move image generation to GA model ids and add the Nano Banana 2 Lite tier (Gemini API changelog, verified 2026-09-01).
