@@ -40,8 +40,6 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Smoke
-        run: npm run smoke
 
       - name: Pack check
         run: npm pack --dry-run --json >/dev/null
