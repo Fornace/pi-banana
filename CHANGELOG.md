@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.5.1
+
+- New `banana_configure` tool: non-interactive provider setup for AI agents (probe, auto-assign tiers, persist). `/banana-setup` stays for humans.
+
 ## 2.5.0
 
 > OpenAI-compatible provider support with interactive setup (works with mantice).

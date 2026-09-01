@@ -20,6 +20,53 @@ function pickDefault(candidates: string[], hint: RegExp): string | undefined {
 	return candidates.find((m) => hint.test(m)) ?? candidates[0];
 }
 
+export interface ConfigureOptions {
+	baseUrl: string;
+	apiKey?: string;
+	visionModel?: string;
+}
+
+/** Non-interactive provider configuration: resolves the key, probes the
+ * endpoint, auto-assigns quality tiers, and persists to settings.json.
+ * Returns a human-readable report. Used by banana_configure and the wizard. */
+export async function configureBananaProvider(ctx: any, opts: ConfigureOptions): Promise<string> {
+	const baseUrl = opts.baseUrl.replace(/\/+$/, "");
+	let apiKey = opts.apiKey;
+	if (!apiKey && ctx?.modelRegistry) {
+		for (const p of ["mantice", "google"]) {
+			try {
+				apiKey = await ctx.modelRegistry.getApiKeyForProvider(p);
+				if (apiKey) break;
+			} catch { /* next */ }
+		}
+	}
+	if (!apiKey) apiKey = process.env.MANTICE_API_KEY;
+	if (!apiKey) throw new Error("No API key found: pass apiKey, log in via /login, or set MANTICE_API_KEY.");
+
+	const probe = await probeCapabilities(baseUrl, apiKey);
+	if (!probe.supportsImageGen || probe.imageModels.length === 0) {
+		throw new Error("Endpoint has no image generation models. Nothing was saved.");
+	}
+	const pick = (hint: RegExp, fallback?: string) =>
+		probe.imageModels.find((m) => hint.test(m)) ?? fallback ?? probe.imageModels[0];
+	const models = {
+		lite: pick(/lite|fast|turbo|mini/i),
+		fast: pick(/^(?!.*(lite|high|max|pro|ultra)).*$/i),
+		high: pick(/max|high|pro|ultra/i),
+	};
+	const visionModel = opts.visionModel ?? probe.visionModels[0];
+	persistBananaConfig({ baseUrl, apiKey, models, ...(visionModel ? { visionModel } : {}) });
+	return [
+		`Configured banana on ${baseUrl}:`,
+		`  lite  = ${models.lite}`,
+		`  fast  = ${models.fast}`,
+		`  high  = ${models.high}`,
+		visionModel ? `  vision = ${visionModel}` : "  vision = (google default kept)",
+		`Image edit endpoint: ${probe.supportsImageEdit ? "available" : "not available"}.`,
+		"banana_image and banana_vision now use this provider.",
+	].join("\n");
+}
+
 export async function runBananaSetup(ctx: any): Promise<void> {
 	const ui = ctx.ui;
 	ui.notify("Banana setup: configure an OpenAI-compatible image provider (mantice works).", "info");

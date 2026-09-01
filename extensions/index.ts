@@ -20,7 +20,7 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { resolveProvider, openaiGenerateImage, openaiEditImage, openaiVision, sizeFor } from "./providers.ts";
-import { runBananaSetup } from "./wizard.ts";
+import { runBananaSetup, configureBananaProvider } from "./wizard.ts";
 import { StringEnum } from "@earendil-works/pi-ai";
 import {
 	Box,
@@ -247,6 +247,29 @@ export default function (pi: ExtensionAPI) {
 		description: "Interactive setup: point banana at any OpenAI-compatible image provider (URL + key, capability probe, model selection)",
 		handler: async (_args, ctx) => {
 			await runBananaSetup(ctx);
+		},
+	});
+
+	pi.registerTool({
+		name: "banana_configure",
+		label: "Banana Configure",
+		description:
+			"Configure banana to generate images through an OpenAI-compatible provider (mantice) instead of Google. " +
+			"Probes the endpoint, auto-selects image models per quality tier, and saves the configuration. " +
+			"Call this when the user asks to set up or switch the image provider.",
+		promptSnippet: "Configure the banana image provider (mantice) non-interactively.",
+		parameters: Type.Object({
+			baseUrl: Type.String({ description: "OpenAI-compatible base URL, e.g. https://llm.fornace.net/v1" }),
+			apiKey: Type.Optional(Type.String({
+				description: "API key. Omit to reuse the mantice/google key already stored in pi credentials.",
+			})),
+			visionModel: Type.Optional(Type.String({
+				description: "Model for image analysis. Omit to auto-detect (e.g. fornace-vision).",
+			})),
+		}),
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			const report = await configureBananaProvider(ctx, params);
+			return { content: [{ type: "text", text: report }], details: {} };
 		},
 	});
 
