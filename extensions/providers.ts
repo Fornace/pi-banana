@@ -18,7 +18,7 @@ import { resolve } from "path";
 export interface OpenAiCompatConfig {
 	baseUrl: string;
 	apiKey: string;
-	models: { lite?: string; fast?: string; high?: string };
+	models: { lite?: string; fast?: string; high?: string; max?: string };
 	visionModel?: string;
 	/** Optional provider id whose key lives in pi's auth.json (e.g. "mantice"). */
 	providerName?: string;

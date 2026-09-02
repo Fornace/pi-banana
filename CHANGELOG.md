@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.2
+
+- Added a `max` quality tier for premium image work. With the Mantice configuration, `max` routes to `fornace-image-max`, backed by GPT Image 2.
+- The provider wizard now assigns separate high and max candidates when the endpoint exposes them.
+
 ## 2.5.1
 
 - New `banana_configure` tool: non-interactive provider setup for AI agents (probe, auto-assign tiers, persist). `/banana-setup` stays for humans.

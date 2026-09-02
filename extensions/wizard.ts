@@ -52,7 +52,8 @@ export async function configureBananaProvider(ctx: any, opts: ConfigureOptions):
 	const models = {
 		lite: pick(/lite|fast|turbo|mini/i),
 		fast: pick(/^(?!.*(lite|high|max|pro|ultra)).*$/i),
-		high: pick(/max|high|pro|ultra/i),
+		high: pick(/high|pro/i),
+		max: pick(/max|ultra/i),
 	};
 	const visionModel = opts.visionModel ?? probe.visionModels[0];
 	persistBananaConfig({ baseUrl, apiKey, models, ...(visionModel ? { visionModel } : {}) });

@@ -53,7 +53,7 @@ const ASPECT_RATIOS = [
 	"21:9",
 ] as const;
 const IMAGE_SIZES = ["1K", "2K", "4K"] as const;
-const IMAGE_QUALITY = ["lite", "fast", "high"] as const;
+const IMAGE_QUALITY = ["lite", "fast", "high", "max"] as const;
 const VISION_QUALITY = ["fast", "high"] as const;
 type ImageQuality = (typeof IMAGE_QUALITY)[number];
 
@@ -67,6 +67,7 @@ const MODEL_FOR_QUALITY: Record<ImageQuality, string> = {
 	lite: "gemini-3.1-flash-lite-image", // Nano Banana 2 Lite (ultra-low latency, cheapest)
 	fast: "gemini-3.1-flash-image", // Nano Banana 2
 	high: "gemini-3-pro-image", // Nano Banana Pro
+	max: "gemini-3-pro-image", // Google fallback; configured provider maps max to GPT Image 2
 };
 
 const DEFAULT_OUTPUT_DIR =
@@ -311,7 +312,7 @@ export default function (pi: ExtensionAPI) {
 			quality: Type.Optional(
 				StringEnum(IMAGE_QUALITY, {
 					description:
-						"'lite' = Nano Banana 2 Lite (ultra-low latency, cheapest). 'fast' = Nano Banana 2 (default, ~3s, cheap). 'high' = Nano Banana Pro (slower, top quality).",
+						"'lite' = Nano Banana 2 Lite (ultra-low latency, cheapest). 'fast' = Nano Banana 2 (default, ~3s, cheap). 'high' = Nano Banana Pro (strong editing). 'max' = premium benchmark tier, GPT Image 2 when the configured provider supports it.",
 					default: DEFAULT_QUALITY,
 				}),
 			),
@@ -362,7 +363,7 @@ export default function (pi: ExtensionAPI) {
 			const provider = await resolveProvider(ctx);
 			if (provider.kind === "openai-compat") {
 				const { config } = provider;
-				const oaiModel = config.models[quality] ?? config.models.fast;
+				const oaiModel = config.models[quality] ?? config.models.high ?? config.models.fast;
 				if (!oaiModel) {
 					throw new Error(`banana: no model mapped for quality "${quality}". Run /banana-setup.`);
 				}
@@ -415,7 +416,7 @@ export default function (pi: ExtensionAPI) {
 				content: [
 					{
 						type: "text",
-						text: `🎨 ${verbLabel} ${aspectRatio} ${imageSize} image with ${quality === "lite" ? "Nano Banana 2 Lite" : quality === "fast" ? "Nano Banana 2" : "Nano Banana Pro"}…`,
+						text: `🎨 ${verbLabel} ${aspectRatio} ${imageSize} image with ${quality === "lite" ? "Nano Banana 2 Lite" : quality === "fast" ? "Nano Banana 2" : quality === "high" ? "Nano Banana Pro" : "GPT Image 2"}…`,
 					},
 				],
 				details: { model, aspectRatio, imageSize, quality, editing },
